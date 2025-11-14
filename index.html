@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Parroquianos FC - Elección de Número</title>
+    <title>Parroquianos FC - Elección de Número y Talla</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
@@ -69,8 +69,13 @@
     <form id="registroForm">
         <label for="nombre">Nombre dorsal:</label>
         <input type="text" id="nombre" name="nombre" required>
-
-        <label for="numero">Número de Camiseta Deseado:</label>
+        
+        <label for="talla">Talla:</label>
+        <select id="talla" name="talla" required>
+            <option value="" disabled selected>Cargando tallas...</option>
+        </select>
+        
+        <label for="numero">Número para la camiseta:</label>
         <select id="numero" name="numero" required>
             <option value="" disabled selected>Cargando números...</option>
         </select>
@@ -84,32 +89,34 @@
         // 🚨 ¡Importante! Pega tu URL de Apps Script aquí 🚨
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwCyujiNMimjOSSDD4CHdgF5vF6OcioyCX898ww3S6q3yayTy5B7O1dXaZnD-q0dou5/exec'; 
 
-        const MAX_NUMERO = 19; // Define el número máximo disponible
+        const MAX_NUMERO = 19; 
         const MIN_NUMERO = 1;
+        // Talllas y sus etiquetas de precio
+        const TALLAS_CON_PRECIO = {
+            'S': '(25)',
+            'M': '(25)',
+            'L': '(25)',
+            'XL': '(27)'
+        };
 
         // Función para cargar la lista de números ocupados
-        async function cargarNumerosDisponibles() {
+        async function cargarDatosDisponibles() {
             const numeroSelect = document.getElementById('numero');
+            const tallaSelect = document.getElementById('talla');
             const submitBtn = document.getElementById('submitBtn');
-            numeroSelect.innerHTML = '<option value="" disabled selected>Cargando números...</option>';
+            
+            // Mensajes de carga inicial
+            numeroSelect.innerHTML = '<option value="" disabled selected>Cargando...</option>';
+            tallaSelect.innerHTML = '<option value="" disabled selected>Cargando...</option>';
             submitBtn.disabled = true;
 
             try {
                 // Consulta al Apps Script (usando doGet) para obtener los números ocupados
-                const response = await fetch(APPS_SCRIPT_URL + '?action=get_numbers');
-                const text = await response.text();
+                const response = await fetch(APPS_SCRIPT_URL + '?action=get_data');
+                // El servidor ahora devuelve directamente el array de números ocupados
+                const numerosOcupados = await response.json(); 
                 
-                // Intentar parsear la respuesta como JSON
-                let numerosOcupados = [];
-                try {
-                    // Esperamos que el script devuelva un array JSON de números ocupados
-                    numerosOcupados = JSON.parse(text); 
-                } catch (e) {
-                    console.error("No se pudo parsear la respuesta del servidor:", text);
-                    // Si falla el JSON, asumimos que no hay números ocupados o hay un error, dejamos la lista vacía.
-                }
-
-                // Generar las opciones de la lista desplegable
+                // --- 1. Generar Opciones de NÚMERO ---
                 numeroSelect.innerHTML = '<option value="" disabled selected>Selecciona un número</option>';
                 let numerosRestantes = 0;
                 
@@ -128,14 +135,25 @@
                     numeroSelect.appendChild(option);
                 }
 
-                submitBtn.disabled = (numerosRestantes === 0);
-                if (numerosRestantes === 0) {
-                     numeroSelect.innerHTML = '<option value="" disabled selected>No quedan números disponibles</option>';
+                // --- 2. Generar Opciones de TALLA ---
+                tallaSelect.innerHTML = '<option value="" disabled selected>Selecciona una talla</option>';
+                let tallasDisponibles = 0; // Solo para habilitar el botón
+
+                for (const talla in TALLAS_CON_PRECIO) {
+                    const option = document.createElement('option');
+                    option.value = talla;
+                    option.textContent = `${talla} ${TALLAS_CON_PRECIO[talla]}`; // Muestra la talla y la etiqueta de precio
+                    tallaSelect.appendChild(option);
+                    tallasDisponibles++;
                 }
+
+                // Habilitar el botón de envío si hay opciones disponibles
+                submitBtn.disabled = (numerosRestantes === 0 || tallasDisponibles === 0);
                 
             } catch (error) {
-                console.error('Error al cargar números:', error);
-                numeroSelect.innerHTML = '<option value="" disabled selected>Error al cargar la lista. Intenta de nuevo.</option>';
+                console.error('Error al cargar datos:', error);
+                numeroSelect.innerHTML = '<option value="" disabled selected>Error de conexión</option>';
+                tallaSelect.innerHTML = '<option value="" disabled selected>Error de conexión</option>';
             }
         }
 
@@ -151,10 +169,10 @@
             const formData = new FormData(form);
             const data = new URLSearchParams();
             
-            // Asegúrate de que los nombres de los campos coincidan con el Apps Script (nombre, numero)
             data.append('nombre', formData.get('nombre'));
             data.append('numero', formData.get('numero'));
-            data.append('action', 'save_number'); // Indicador para el Apps Script
+            data.append('talla', formData.get('talla')); 
+            data.append('action', 'save_number'); 
 
             fetch(APPS_SCRIPT_URL, {
                 method: 'POST',
@@ -164,11 +182,11 @@
             .then(result => {
                 mensajeDiv.textContent = result;
                 if (result.includes("¡Felicidades!")) {
-                    mensajeDiv.style.backgroundColor = '#d4edda'; // Verde
+                    mensajeDiv.style.backgroundColor = '#d4edda'; 
                     form.reset(); 
-                    cargarNumerosDisponibles(); // Recargar la lista para mostrar el número como ocupado
+                    cargarDatosDisponibles(); // Recargar la lista de números ocupados
                 } else if (result.includes("ya ha sido elegido")) {
-                    mensajeDiv.style.backgroundColor = '#f8d7da'; // Rojo
+                    mensajeDiv.style.backgroundColor = '#f8d7da'; 
                 } else {
                      mensajeDiv.style.backgroundColor = '#f8d7da'; 
                 }
@@ -180,8 +198,8 @@
             });
         });
 
-        // Carga inicial de números al abrir la página
-        cargarNumerosDisponibles();
+        // Carga inicial de datos al abrir la página
+        cargarDatosDisponibles();
 
     </script>
 </body>
