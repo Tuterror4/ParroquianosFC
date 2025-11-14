@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Parroquianos FC - Elección de Número</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Diseño Simple */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            max-width: 450px; 
+            margin: 40px auto; 
+            padding: 30px; 
+            background-color: #f4f4f9;
+            border: 1px solid #ddd; 
+            border-radius: 10px; 
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+        label {
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"], select { 
+            width: 100%; 
+            padding: 12px; 
+            margin-bottom: 15px; 
+            box-sizing: border-box; 
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+        }
+        button { 
+            background-color: #3498db; 
+            color: white; 
+            padding: 15px 20px; 
+            margin-top: 10px; 
+            border: none; 
+            cursor: pointer; 
+            width: 100%; 
+            border-radius: 5px;
+            font-size: 18px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #mensaje { 
+            margin-top: 25px; 
+            padding: 15px; 
+            border-radius: 5px; 
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <h2>Parroquianos FC</h2>
+    <form id="registroForm">
+        <label for="nombre">Nombre dorsal:</label>
+        <input type="text" id="nombre" name="nombre" required>
+
+        <label for="numero">Número de Camiseta Deseado:</label>
+        <select id="numero" name="numero" required>
+            <option value="" disabled selected>Cargando números...</option>
+        </select>
+
+        <button type="submit" id="submitBtn" disabled>Elegir y Confirmar</button>
+    </form>
+
+    <div id="mensaje"></div>
+
+    <script>
+        // 🚨 ¡Importante! Pega tu URL de Apps Script aquí 🚨
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwCyujiNMimjOSSDD4CHdgF5vF6OcioyCX898ww3S6q3yayTy5B7O1dXaZnD-q0dou5/exec'; 
+
+        const MAX_NUMERO = 19; // Define el número máximo disponible
+        const MIN_NUMERO = 1;
+
+        // Función para cargar la lista de números ocupados
+        async function cargarNumerosDisponibles() {
+            const numeroSelect = document.getElementById('numero');
+            const submitBtn = document.getElementById('submitBtn');
+            numeroSelect.innerHTML = '<option value="" disabled selected>Cargando números...</option>';
+            submitBtn.disabled = true;
+
+            try {
+                // Consulta al Apps Script (usando doGet) para obtener los números ocupados
+                const response = await fetch(APPS_SCRIPT_URL + '?action=get_numbers');
+                const text = await response.text();
+                
+                // Intentar parsear la respuesta como JSON
+                let numerosOcupados = [];
+                try {
+                    // Esperamos que el script devuelva un array JSON de números ocupados
+                    numerosOcupados = JSON.parse(text); 
+                } catch (e) {
+                    console.error("No se pudo parsear la respuesta del servidor:", text);
+                    // Si falla el JSON, asumimos que no hay números ocupados o hay un error, dejamos la lista vacía.
+                }
+
+                // Generar las opciones de la lista desplegable
+                numeroSelect.innerHTML = '<option value="" disabled selected>Selecciona un número</option>';
+                let numerosRestantes = 0;
+                
+                for (let i = MIN_NUMERO; i <= MAX_NUMERO; i++) {
+                    const numString = String(i);
+                    const option = document.createElement('option');
+                    option.value = numString;
+                    option.textContent = numString;
+                    
+                    if (numerosOcupados.includes(numString)) {
+                        option.disabled = true;
+                        option.textContent += ' (OCUPADO)';
+                    } else {
+                        numerosRestantes++;
+                    }
+                    numeroSelect.appendChild(option);
+                }
+
+                submitBtn.disabled = (numerosRestantes === 0);
+                if (numerosRestantes === 0) {
+                     numeroSelect.innerHTML = '<option value="" disabled selected>No quedan números disponibles</option>';
+                }
+                
+            } catch (error) {
+                console.error('Error al cargar números:', error);
+                numeroSelect.innerHTML = '<option value="" disabled selected>Error al cargar la lista. Intenta de nuevo.</option>';
+            }
+        }
+
+        // Función para enviar el formulario
+        document.getElementById('registroForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const form = e.target;
+            const mensajeDiv = document.getElementById('mensaje');
+            mensajeDiv.textContent = 'Procesando tu elección...';
+            mensajeDiv.style.backgroundColor = '#ffffcc';
+
+            const formData = new FormData(form);
+            const data = new URLSearchParams();
+            
+            // Asegúrate de que los nombres de los campos coincidan con el Apps Script (nombre, numero)
+            data.append('nombre', formData.get('nombre'));
+            data.append('numero', formData.get('numero'));
+            data.append('action', 'save_number'); // Indicador para el Apps Script
+
+            fetch(APPS_SCRIPT_URL, {
+                method: 'POST',
+                body: data
+            })
+            .then(response => response.text())
+            .then(result => {
+                mensajeDiv.textContent = result;
+                if (result.includes("¡Felicidades!")) {
+                    mensajeDiv.style.backgroundColor = '#d4edda'; // Verde
+                    form.reset(); 
+                    cargarNumerosDisponibles(); // Recargar la lista para mostrar el número como ocupado
+                } else if (result.includes("ya ha sido elegido")) {
+                    mensajeDiv.style.backgroundColor = '#f8d7da'; // Rojo
+                } else {
+                     mensajeDiv.style.backgroundColor = '#f8d7da'; 
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                mensajeDiv.textContent = 'Ocurrió un error de conexión.';
+                mensajeDiv.style.backgroundColor = '#f8d7da';
+            });
+        });
+
+        // Carga inicial de números al abrir la página
+        cargarNumerosDisponibles();
+
+    </script>
+</body>
+</html>
